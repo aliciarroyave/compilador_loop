@@ -1,0 +1,20 @@
+incluir ".\LIBRERIAS\libreria.loop"
+incluir ".\LIBRERIAS\libreria1.loop"
+
+clase Uno
+  propiedades publicas:
+    cadena hola
+    entero adios
+    entero esEntero
+  metodos publicos:
+    entero resta()
+      hola = "hola"
+    boleano suma1()
+      resta = 3
+clase Dos
+  propiedades privadas:
+    boleano no
+    entero adios
+  metodos publicos:
+    entero suma()
+      adios = adios + esEntero 

@@ -1,0 +1,681 @@
+package principal;
+
+import java_cup.runtime.Symbol;
+import objetos.Arbol;
+import objetos.Nodo;
+import objetos.token;
+import java.util.ArrayList;
+import objetos.Pila;
+
+action code {:
+:};
+
+parser code {: 
+    public Arbol arbolSintactico;
+    public Nodo raiz, auxLibrerias, auxiliar, auxClases, auxiliar2;
+    
+    public String funcionTem;
+    public int tipoFun;
+    Pila pila;
+    
+    public static final int TIPO_INDENTACION = 1;
+    public static final int TIPO_CONDICION = 2;
+
+    @Override
+    public void syntax_error(Symbol sy) {
+        token t=(token)sy.value;
+        done_parsing();
+        report_error("Error sintáctico cerca de \""+ t.getNombre()+"\" ["+ (t.getFila()+1) +" : "+t.getColumna()+"]",null);
+    }
+
+    public void syntax_error(int tipo, int fila, int columna) {
+        done_parsing();
+        switch (tipo){
+            case 1:
+                report_error("Error sintáctico: identacion incorrecta: En la linea [" + (fila+1) + "]" ,null);
+                break;
+            case 2:
+                report_error("Error sintáctico: sino sin un si previo: En la linea [" + (fila+1) + "]" ,null);
+                break;
+            default:
+                report_error("Error sintactico",null);
+                break;
+        }
+    }
+    public void syntax_error(int tipo) {
+        done_parsing();
+        switch (tipo){
+            case 1:
+                report_error("Error sintáctico: identacion incorrecta",null);
+                break;
+            default:
+                report_error("Error sintactico",null);
+                break;
+        }
+    }
+    public void syntax_error(String mensaje) {
+        done_parsing();
+        report_error("Error sintáctico: " + mensaje,null);
+    }
+
+:};
+
+init with{:
+    pila = new Pila();
+    raiz = new Nodo("PROGRAMA", -2, Nodo.TIPO_RAIZ);
+    arbolSintactico = new Arbol(raiz);
+:};
+
+terminal RCADENA, RBOLEANO, RREAL, RENTERO, RINCLUIR, RSI, RSINO, RENTONCES, RRETORNAR, RFALSE, 
+ RTRUE, RPARACADA, RDESDE, RNULO, RMIENTRAS, RINCREMENTAR, RDECREMENTAR, RHACER, RESCRIBIR, 
+ RCLASE, RPROP, RMET, RPUBA, RPRIVA, RPROTA, RPUBLO, RPRIVO, RPROTO, RPRINCIPAL, RINSTAN, RELIM,
+ RCONSTRUCT, REXTEND, RARG, SUMA, RESTA, MULTIPLICACION, DIVISION, EXPONENTE, MODULACION, IGUALADOR,
+ COMPARADOR, DIFERENTE, MENORIGUAL, MAYORIGUAL, MAYOR, MENOR, INTERROGANTE, AND, OR, PUNTO, PUNTOPUNTO,
+ PUNTOCOMA, PARENTESISA, PARENTESISC, CORCHETEA, CORCHETEC, COMA, CADENA, ENTERO, REAL, IDVAR, IDCLASE,
+ LOOP, RISNTAN, RCONSTRUC;
+
+non terminal Inicio, Tipo_Dato, Bloque_Librerias, Bloque_Funciones, Linea_Librerias, Id_Funcion, Operacion_Archivo;
+
+/*    reglas que generan un nodo*/
+non terminal Nodo Funcion_Parametro, Funcion_Encabezado, Funcion, Parametro_Variable, Funcion_Contenido, Retornar, Seccion_Codigo, Datos,
+Seccion_Variables, Linea_Codigo, Valor_Retorno, Asignacion, Llamada_Funcion, Ciclo, Condicion, Expresion, Expresion_PosPreIncremento,
+Param_Ciclo, Instruccion, Funcion_Archivo, Campo_Archivo, Bloque_CLASES, CLASE, Clase_Encabezado, Propiedades, IdProp, Funciones, IdFun;
+non terminal ArrayList<Nodo> Linea_Variables, Varias_Variables, Parametro_Enviado, Bloque_Variables;
+/*    reglas  shift reduce  */
+non terminal Shift_Boleana;
+precedence right SUMA, RESTA, COMPARADOR, DIFERENTE, MAYORIGUAL, MENORIGUAL, MAYOR, MENOR, AND, OR;
+precedence left MULTIPLICACION, DIVISION, EXPONENTE, MODULACION, COMA;
+
+Inicio ::=Bloque_CLASES {:
+            if(parser.auxClases != null){
+                if(parser.raiz.agregarHijo(parser.auxClases) == 0) parser.syntax_error(parser.TIPO_INDENTACION);
+                parser.auxClases = null;
+            }
+          :}
+         | Bloque_Librerias  Bloque_CLASES:bf  {:
+            if(parser.auxLibrerias != null){
+                if(parser.raiz.agregarHijo(parser.auxLibrerias) == 0) parser.syntax_error(parser.TIPO_INDENTACION);
+                parser.auxLibrerias = null;
+            }
+            if(parser.auxClases != null){
+                if(parser.raiz.agregarHijo(parser.auxClases) == 0) parser.syntax_error(parser.TIPO_INDENTACION);
+                parser.auxClases = null;
+            }
+          :};
+            /***********Librerias**************/
+Bloque_Librerias ::= Linea_Librerias                                                                             {::}
+                   | Linea_Librerias  Bloque_Librerias                                                           {::};
+
+Linea_Librerias  ::= RINCLUIR:i CADENA:c {:
+                        if(parser.auxLibrerias == null) parser.auxLibrerias = new Nodo("BLOQUE INCLUIR", -1, Nodo.TIPO_BLOQUE);
+                        token aux = (token) c;
+                        token aux2 = (token) i;
+                        if(parser.auxLibrerias.agregarHijo(new Nodo(aux.getNombre(), aux2.getTab(), Nodo.TIPO_CADENA)) == 0) parser.syntax_error(parser.TIPO_INDENTACION, aux.getFila(), aux.getColumna());
+                  :};
+
+  /***********CLases**************/  
+Bloque_CLASES ::= CLASE:nodoClase 
+                    {:
+                        if(parser.auxClases == null) parser.auxClases = new Nodo("BLOQUE CLASES", -1, Nodo.TIPO_CLASE);
+                        //if(parser.auxiliar2.agregarHijoNI(nodoFuncion) == 0) parser.syntax_error("Error de identacion en la  Funcion: \"" + nodoFuncion.getContenido() + "\"");
+                        parser.auxClases.agregarHijoNI(nodoClase);
+                    :} | CLASE:nodoClase Bloque_CLASES 
+                    {:
+                        if(parser.auxClases == null) parser.auxClases = new Nodo("BLOQUE CLASES", -1, Nodo.TIPO_CLASE);
+                        //if(parser.auxiliar2.agregarHijoNI(nodoFuncion) == 0) parser.syntax_error("Error de identacion en la  Funcion: \"" + nodoFuncion.getContenido() + "\"");
+                        parser.auxClases.agregarHijoNI(nodoClase);
+                    :};
+
+CLASE ::= Clase_Encabezado:ce Propiedades:sv Funciones:f
+         {:
+            
+            ce.agregarHijoNI(sv);
+            ce.agregarHijoNI(f);
+            RESULT = ce;
+        :};
+
+Clase_Encabezado ::= RCLASE IDCLASE:cl
+        {:
+            token aux = (token) cl;
+            Nodo nodoClase = new Nodo(aux.getNombre(), aux.getTab(), Nodo.TIPO_CLASE);
+            RESULT = nodoClase;
+        :};
+
+
+    /*********Propiedades*********/   
+Propiedades ::= RPROP IdProp PUNTOPUNTO Seccion_Variables:sv 
+        {:
+            Nodo prop = new Nodo("BLOQUE PROPIEDADES", 0, Nodo.TIPO_PROPIEDADES);
+            prop.agregarHijo(sv);
+            RESULT = prop;
+        :};
+
+IdProp ::= RPRIVA | RPROTA | RPUBA ;
+Seccion_Variables ::= Linea_Variables:lv 
+                    {:
+                        Nodo secVar = new Nodo("BLOQUE VARIABLES", 1, Nodo.TIPO_BLOQUE);
+                        for(int i = 0; i < lv.size(); i++){
+                           if(secVar.agregarHijo(lv.get(i)) == 0) parser.syntax_error(parser.TIPO_INDENTACION, lv.get(i).getFila(), lv.get(i).getColumna());
+                        }   
+                        RESULT = secVar;
+                    :} 
+                    |Linea_Variables:lv Seccion_Variables:secVar 
+                    {:
+                        if(secVar == null) secVar = new Nodo("BLOQUE VARIABLES", 1, Nodo.TIPO_BLOQUE);
+                        for(int i = 0; i < lv.size(); i++){
+                           if(secVar.agregarHijo(lv.get(i)) == 0) parser.syntax_error(parser.TIPO_INDENTACION, lv.get(i).getFila(), lv.get(i).getColumna());
+                        }  
+                        RESULT = secVar;
+                    :};
+
+Linea_Variables ::= Tipo_Dato:td Varias_Variables:vv 
+                    {:
+                        token tipoDato= (token) td;
+                        int valor = 0, tipo = 0;
+                        switch (tipoDato.getNombre()){
+                            case "entero": tipo = Nodo.TIPO_ENTERO; break;
+                            case "real": tipo = Nodo.TIPO_REAL; break;
+                            case "cadena": tipo = Nodo.TIPO_CADENA; break;
+                            case "boleano": tipo = Nodo.TIPO_BOLEANO; break;
+                        }
+                         for(int i = 0; i < vv.size(); i++){
+                            vv.get(i).setTab(tipoDato.getTab()+1);
+                            vv.get(i).setTipo(tipo);
+                        }
+                        RESULT = vv;
+                       
+                    :};
+
+Tipo_Dato ::= RBOLEANO:bol {: RESULT = bol;:}
+            | RENTERO:num  {: RESULT = num;:}
+            | RREAL:num  {: RESULT = num;:}
+            | RCADENA:cad  {: RESULT = cad;:};
+
+Varias_Variables  ::= IDVAR:IDV
+                    {:
+                        token idVar = (token) IDV;
+                        ArrayList<Nodo> variables = new ArrayList<>();
+                        variables.add(new Nodo(idVar.getNombre(), 0, 0, idVar.getFila(), idVar.getColumna()));
+                        RESULT = variables;
+                    :}
+                    | IDVAR:IDV COMA Varias_Variables:variables
+                    {:
+                        token idVar = (token) IDV;
+                        if(idVar==null) variables = new ArrayList<>();
+                        variables.add(new Nodo(idVar.getNombre(), 0, 0, idVar.getFila(), idVar.getColumna()));
+                        RESULT = variables;
+                    :};
+    /*********Metodos*********/
+Funciones ::= RMET IdFun PUNTOPUNTO Bloque_Funciones:BF
+        {:
+            Nodo prop = new Nodo("BLOQUE METODOS", 0, Nodo.TIPO_METODOS);
+            prop.agregarHijoNI(parser.auxiliar2);
+            parser.auxiliar2 = null;
+            RESULT = prop;
+        :};
+
+IdFun ::= RPRIVO | RPROTO | RPUBLO ;
+Bloque_Funciones ::=  Funcion:nodoFuncion
+                    {:
+                        if(parser.auxiliar2 == null) parser.auxiliar2 = new Nodo("BLOQUE FUNCION", 0, Nodo.TIPO_BLOQUE);
+                        //if(parser.auxiliar2.agregarHijoNI(nodoFuncion) == 0) parser.syntax_error("Error de identacion en la  Funcion: \"" + nodoFuncion.getContenido() + "\"");
+                        parser.auxiliar2.agregarHijoNI(nodoFuncion);
+                    :}
+                    | Funcion:nodoFuncion  Bloque_Funciones
+                    {:
+                        if(parser.auxiliar2 == null) parser.auxiliar2 = new Nodo("BLOQUE FUNCION", 0, Nodo.TIPO_BLOQUE);
+                        //if(parser.auxiliar2.agregarHijoNI(nodoFuncion) == 0) parser.syntax_error("Error de identacion en la  Funcion: \"" + nodoFuncion.getContenido() + "\"");
+                        parser.auxiliar2.agregarHijoNI(nodoFuncion);
+                    :};
+
+Funcion ::= Funcion_Encabezado:FE  Funcion_Contenido:FC 
+         {:
+                if(FC != null) FE.agregarHijoNI(FC);
+                    
+                RESULT = FE;
+         :};
+
+
+
+Funcion_Encabezado ::= Tipo_Dato:td Id_Funcion:IDV  PARENTESISA  PARENTESISC      
+                    {:
+                    
+                    token aux2 = (token) IDV;
+                    token tipo = (token) td;
+                    
+                    Nodo nodoFuncion = new Nodo(aux2.getNombre(), tipo.getTab(), Nodo.TIPO_FUNCION);
+                    int tipoDato = 0;
+                    switch (tipo.getNombre()){
+                        case "entero": tipoDato = Nodo.TIPO_ENTERO; break;
+                        case "real": tipoDato = Nodo.TIPO_REAL; break;
+                        case "cadena": tipoDato = Nodo.TIPO_CADENA; break;
+                        case "boleano": tipoDato = Nodo.TIPO_BOLEANO; break;
+                    }
+                    nodoFuncion.agregarHijoNI(new Nodo("TIPO", 0, tipoDato));
+                    RESULT = nodoFuncion;
+                    :} 
+                    | Tipo_Dato:td Id_Funcion:IDV  PARENTESISA  Funcion_Parametro:hijoParam  PARENTESISC {:
+                        token aux2 = (token) IDV;
+                        token tipo = (token) td;
+                    
+                        Nodo nodoFuncion = new Nodo(aux2.getNombre(), tipo.getTab(), Nodo.TIPO_FUNCION);
+
+                        int tipoDato = 0;
+                        switch (tipo.getNombre()){
+                            case "entero": tipoDato = Nodo.TIPO_ENTERO; break;
+                            case "real": tipoDato = Nodo.TIPO_REAL; break;
+                            case "cadena": tipoDato = Nodo.TIPO_CADENA; break;
+                            case "boleano": tipoDato = Nodo.TIPO_BOLEANO; break;
+                        }
+                    nodoFuncion.agregarHijoNI(new Nodo("TIPO", 0, tipoDato));
+                        nodoFuncion.agregarHijoNI(hijoParam);    
+                        RESULT = nodoFuncion;
+                    :};
+
+Id_Funcion ::= IDVAR:id      {:RESULT = id;:}
+             | RPRINCIPAL:p    {:RESULT = p;:};
+
+Funcion_Parametro  ::= Parametro_Variable:pv
+                    {: 
+                        Nodo NFP = new Nodo ("PARAMETROS", 1, Nodo.TIPO_PARAMETROS);
+                        NFP.agregarHijo(pv);
+                        RESULT = NFP;
+                    :}
+                    | Parametro_Variable:pv  COMA  Funcion_Parametro:NFP{:
+                        if (NFP == null) NFP = new Nodo ("PARAMETROS", 1, Nodo.TIPO_PARAMETROS);
+                        
+                        NFP.agregarHijo(pv);
+
+                        RESULT = NFP;
+                     :};
+
+Parametro_Variable ::= Tipo_Dato:td IDVAR:IDV  
+                    {: 
+                        Nodo aux;
+                        token idVar= (token) IDV;
+                         token tipoDato= (token) td;
+                        int valor = 0, tipo = 0;
+                        switch (tipoDato.getNombre()){
+                            case "entero": tipo = Nodo.TIPO_ENTERO; break;
+                            case "real": tipo = Nodo.TIPO_REAL; break;
+                            case "cadena": tipo = Nodo.TIPO_CADENA; break;
+                            case "boleano": tipo = Nodo.TIPO_BOLEANO; break;
+                        }
+                        aux = new Nodo(idVar.getNombre(), 2, tipo);
+                        RESULT = aux;
+                    :};
+
+Funcion_Contenido  ::= /*Retornar:r 
+                        {:
+                            Nodo contenido = new Nodo("BLOQUE CONTENIDO", 2, Nodo.TIPO_BLOQUE);
+                            if(contenido.agregarHijo(r) == 0)  parser.syntax_error(parser.TIPO_INDENTACION, r.getFila(), r.getColumna());
+                            RESULT = contenido;
+                        :}
+                     |*/ Seccion_Codigo 
+                        {:
+                            Nodo contenido = new Nodo("BLOQUE CONTENIDO", 2, Nodo.TIPO_BLOQUE);
+                            contenido.setHijos(parser.pila.getPila());
+                            parser.pila = new Pila();
+                            RESULT = contenido;
+                           :}| Seccion_Codigo PUNTOCOMA
+                        {:
+                            Nodo contenido = new Nodo("BLOQUE CONTENIDO", 2, Nodo.TIPO_BLOQUE);
+                            contenido.setHijos(parser.pila.getPila());
+                            parser.pila = new Pila();
+                            RESULT = contenido;
+                        :};                       
+
+Retornar ::= RRETORNAR:r Valor_Retorno:vr  
+                        {:
+                            token ret = (token) r;
+                            Nodo retor = new Nodo("RETORNAR", ret.getTab() + 1, Nodo.TIPO_RETORNAR, ret.getFila(), ret.getColumna());
+                            vr.setTab(ret.getTab() + 2);
+                            if(retor.agregarHijo(vr)== 0) parser.syntax_error(parser.TIPO_INDENTACION, ret.getFila(), vr.getColumna()); 
+                            RESULT = retor;
+                        :};
+
+Valor_Retorno  ::= RNULO:nu 
+                {:
+                    token nulo = (token) nu;
+                    RESULT = new Nodo("NULO", 0, Nodo.TIPO_NULO, nulo.getFila(), nulo.getColumna());
+                :}
+                  | Expresion:exp  {:RESULT =exp;:};
+
+
+Seccion_Codigo ::= Linea_Codigo {::}
+                | Linea_Codigo  Seccion_Codigo{::};
+ 
+Linea_Codigo ::= Llamada_Funcion:temp {: if (parser.pila.push(temp) == 0) parser.syntax_error(parser.TIPO_INDENTACION, temp.getFila(), temp.getColumna()); :}
+                |Ciclo:temp {:if (parser.pila.push(temp) == 0) parser.syntax_error(parser.TIPO_INDENTACION, temp.getFila(), temp.getColumna());:}
+                |Condicion:temp{:
+                    switch (parser.pila.push(temp)){
+                        case 0: parser.syntax_error(parser.TIPO_INDENTACION, temp.getFila(), temp.getColumna());
+                            break;
+                        case 2: parser.syntax_error(parser.TIPO_CONDICION, temp.getFila(), temp.getColumna());
+                            break;
+                    }
+                :}
+                |Instruccion:temp  {:if (parser.pila.push(temp) == 0) parser.syntax_error(parser.TIPO_INDENTACION, temp.getFila(), temp.getColumna());:}
+                |Asignacion:temp {:if (parser.pila.push(temp) == 0) parser.syntax_error(parser.TIPO_INDENTACION, temp.getFila(), temp.getColumna());:}
+                |Retornar:temp {:if (parser.pila.push(temp) == 0) parser.syntax_error(parser.TIPO_INDENTACION, temp.getFila(), temp.getColumna());:};
+
+
+Asignacion  ::= IDVAR:IDV IGUALADOR:IG Expresion:r 
+                {:
+                    token idVar = (token) IDV;
+                    token igual = (token) IG;
+                    Nodo Base = new Nodo (igual.getNombre(), idVar.getTab()+1, Nodo.TIPO_ASIGNACION, idVar.getFila(), igual.getColumna());
+                    Base.agregarHijoNI(new Nodo(idVar.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR, idVar.getFila(), idVar.getColumna()));
+                    Base.agregarHijoNI(r);
+                    RESULT = Base;
+                :}
+              |  IDVAR:IDV IGUALADOR:IG Expresion_PosPreIncremento:r    
+                {:
+                    token idVar = (token) IDV;
+                    token igual = (token) IG;
+                    Nodo Base = new Nodo (igual.getNombre(), idVar.getTab()+1, Nodo.TIPO_ASIGNACION, idVar.getFila(), igual.getColumna());
+                    Base.agregarHijoNI(new Nodo(idVar.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR, idVar.getFila(), idVar.getColumna()));
+                    Base.agregarHijoNI(r);
+                    RESULT = Base;
+                :};
+
+Instruccion  ::= RESCRIBIR:e Expresion:exp {:
+                    token esc = (token) e;
+                    Nodo Base = new Nodo (esc.getNombre(), esc.getTab()+1, Nodo.TIPO_INSTRUCCION, esc.getFila(), esc.getColumna());
+                    exp.setTab(esc.getTab());
+                    Base.agregarHijoNI(exp);
+                    RESULT = Base;
+                :};
+
+Expresion   ::= IDVAR:n 
+                {:
+                    token aux = (token) n; 
+                    RESULT = new Nodo(aux.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR, aux.getFila(), aux.getColumna());
+                :}
+                |RTRUE:n 
+                {:
+                    token aux = (token) n; 
+                    RESULT = new Nodo(aux.getNombre(), 0, Nodo.TIPO_BOLEANO, aux.getFila(), aux.getColumna());
+                :}
+                |RFALSE:n 
+                {:
+                    token aux = (token) n; 
+                    RESULT = new Nodo(aux.getNombre(), 0, Nodo.TIPO_BOLEANO, aux.getFila(), aux.getColumna());
+                :}
+                |CADENA:n 
+                {:
+                    token aux = (token) n; 
+                    RESULT = new Nodo(aux.getNombre(), 0, Nodo.TIPO_CADENA, aux.getFila(), aux.getColumna());
+                :}
+                |ENTERO:n 
+                {:
+                    token aux = (token) n; 
+                    RESULT = new Nodo(aux.getNombre(), 0, Nodo.TIPO_ENTERO, aux.getFila(), aux.getColumna());
+                :}
+                |REAL:n 
+                {:
+                    token aux = (token) n; 
+                    RESULT = new Nodo(aux.getNombre(), 0, Nodo.TIPO_REAL, aux.getFila(), aux.getColumna());
+                :}
+                | INTERROGANTE:in 
+                        {:
+                            token inte = (token) in;
+                            RESULT = new Nodo(inte.getNombre(), 0, Nodo.TIPO_INTERROGANTE, inte.getFila(), inte.getColumna());
+                        :}
+                |Funcion_Archivo:n              {:RESULT = n;:}
+                |Campo_Archivo:n              {:RESULT = n;:}
+                
+                | Llamada_Funcion:llam{: RESULT = llam; :}
+
+                | PARENTESISA Expresion:exp      PARENTESISC 
+                {:
+                    RESULT = exp;
+                :}
+                | Expresion:l   COMA:op           Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   SUMA:op           Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   RESTA:op          Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   MULTIPLICACION:op Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   DIVISION:op       Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   EXPONENTE:op      Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   MODULACION:op     Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   COMPARADOR:op     Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   DIFERENTE:op      Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   MAYORIGUAL:op     Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   MENORIGUAL:op     Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   MAYOR:op          Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   MENOR:op          Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :}
+                | Expresion:l   Shift_Boleana:op  Expresion:r 
+                    {:
+                        token operador = (token) op;
+                        Nodo base = new Nodo (operador.getNombre(), 0, Nodo.TIPO_OPERADOR, operador.getFila(), operador.getColumna());
+                        base.agregarHijoNI(l);
+                        base.agregarHijoNI(r);
+                        RESULT = base;
+                    :};
+
+Shift_Boleana ::= AND:a {:RESULT = a;:}
+                | OR:o  {:RESULT = o;:};
+
+Expresion_PosPreIncremento ::= SUMA SUMA IDVAR:IDV
+                            {:
+                                token idVar = (token) IDV;
+                                Nodo i = new Nodo ("+", 0, Nodo.TIPO_OPERADOR, idVar.getFila(), idVar.getColumna());
+                                i.agregarHijoNI(new Nodo (idVar.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR, idVar.getFila(), idVar.getColumna()));
+                                i.agregarHijoNI(new Nodo ("1", 0, Nodo.TIPO_ENTERO, idVar.getFila(), idVar.getColumna()));
+                                RESULT = i;
+                            :}
+                             | IDVAR:IDV RESTA RESTA
+                            {:
+                                token idVar = (token) IDV;
+                                Nodo i = new Nodo ("-", 0, Nodo.TIPO_OPERADOR, idVar.getFila(), idVar.getColumna());
+                                i.agregarHijoNI(new Nodo (idVar.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR, idVar.getFila(), idVar.getColumna()));
+                                i.agregarHijoNI(new Nodo ("1", 0, Nodo.TIPO_ENTERO, idVar.getFila(), idVar.getColumna()));
+                                RESULT = i;
+                            :};
+
+Llamada_Funcion ::= IDVAR:IDV PARENTESISA  Parametro_Enviado:par PARENTESISC
+                {:
+                    token idVar =(token) IDV;
+
+                    Nodo base = new Nodo(idVar.getNombre(), idVar.getTab()+1, Nodo.TIPO_LLAMADA_FUNCION, idVar.getFila(), idVar.getColumna());
+                    Nodo parametros = new Nodo("PARAMETROS", 0, Nodo.TIPO_PARAMETROS, idVar.getFila(), idVar.getColumna());
+                    parametros.setHijos(par);
+                    base.agregarHijoNI(parametros);
+                    RESULT = base;
+                :}
+                |IDVAR:IDV PARENTESISA  PARENTESISC
+                {:
+                    token idVar =(token) IDV;
+
+                    RESULT = new Nodo(idVar.getNombre(), idVar.getTab()+1, Nodo.TIPO_LLAMADA_FUNCION, idVar.getFila(), idVar.getColumna());
+                :};
+ 
+Parametro_Enviado ::= Datos:dat
+                    {:
+                        ArrayList<Nodo> arry = new ArrayList<>();
+                        arry.add(dat);
+                        RESULT = arry;
+                    :}
+                    |Datos:dat COMA Parametro_Enviado:array
+                    {:
+                        if (array == null) array = new ArrayList<>();   
+                        array.add(dat);
+                        RESULT = array;
+                    :};
+
+Datos  ::= IDVAR:temp  {:token dat = (token) temp; RESULT = new Nodo(dat.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR, dat.getFila(), dat.getColumna());:}
+         | ENTERO:temp {:token dat = (token) temp; RESULT = new Nodo(dat.getNombre(), 0, Nodo.TIPO_ENTERO, dat.getFila(), dat.getColumna());:}
+         | REAL:temp {:token dat = (token) temp; RESULT = new Nodo(dat.getNombre(), 0, Nodo.TIPO_REAL, dat.getFila(), dat.getColumna());:}
+         | CADENA:temp {:token dat = (token) temp; RESULT = new Nodo(dat.getNombre(), 0, Nodo.TIPO_CADENA, dat.getFila(), dat.getColumna());:}
+         | RTRUE:temp  {:token dat = (token) temp; RESULT = new Nodo(dat.getNombre(), 0, Nodo.TIPO_BOLEANO, dat.getFila(), dat.getColumna());:}
+         | RFALSE:temp {:token dat = (token) temp; RESULT = new Nodo(dat.getNombre(), 0, Nodo.TIPO_BOLEANO, dat.getFila(), dat.getColumna());:};
+Funcion_Archivo ::= Campo_Archivo:ca PUNTO Operacion_Archivo:oa {:
+                    token operador = (token) oa;
+                    Nodo res = new Nodo(operador.getNombre(), 0, Nodo.TIPO_OPERACION_ARCHIVO, operador.getFila(), operador.getColumna());
+                    res.agregarHijoNI(ca);
+                    RESULT = res;
+                :};
+
+
+Ciclo ::= RDESDE:des PARENTESISA Param_Ciclo:pc RMIENTRAS Expresion:ex RINCREMENTAR 
+                ENTERO:num PARENTESISC RHACER  {:
+                token desde = (token) des;
+                token numero = (token) num;
+                Nodo ndesde = new Nodo(desde.getNombre(), desde.getTab() + 1, Nodo.TIPO_DESDE,desde.getFila(), desde.getColumna());
+                ndesde.agregarHijoNI(pc);
+                ndesde.agregarHijoNI(ex);
+                
+                int a = Integer.parseInt(numero.getNombre());
+                if (a < 0) parser.syntax_error("El valor de incremento en el ciclo no puede ser un numero negativo: [" + numero.getFila() +","+ numero.getColumna() + "]");
+                ndesde.agregarHijoNI(new Nodo(a + "", 0, Nodo.TIPO_ENTERO, numero.getFila(), numero.getColumna()));
+                ndesde.agregarHijoNI(new Nodo ("BLOQUE CODIGO", desde.getTab()+1, Nodo.TIPO_BLOQUE));
+                RESULT = ndesde;
+                
+            :}
+        | RDESDE:des PARENTESISA Param_Ciclo:pc RMIENTRAS Expresion:ex RDECREMENTAR ENTERO:num
+                PARENTESISC RHACER {:
+                token desde = (token) des;
+                token numero = (token) num;
+                Nodo ndesde = new Nodo(desde.getNombre(), desde.getTab() + 1, Nodo.TIPO_DESDE,desde.getFila(), desde.getColumna());
+                ndesde.agregarHijoNI(pc);
+                ndesde.agregarHijoNI(ex);
+                
+                int a = Integer.parseInt(numero.getNombre());
+                if (a < 0) parser.syntax_error("El valor de incremento en el ciclo no puede ser un numero negativo: [" + numero.getFila() +","+ numero.getColumna() + "]");
+                ndesde.agregarHijoNI(new Nodo((a*-1) + "", 0, Nodo.TIPO_ENTERO, numero.getFila(), numero.getColumna()));
+                ndesde.agregarHijoNI(new Nodo ("BLOQUE CODIGO", desde.getTab()+1, Nodo.TIPO_BLOQUE));
+                RESULT = ndesde;
+            :};
+
+
+Param_Ciclo ::= IDVAR:id {:
+                        token idVar = (token) id; 
+                        Nodo NFP = new Nodo ("ASIGNACION", idVar.getTab() + 1, Nodo.TIPO_ASIGNACION);
+                        NFP.agregarHijoNI(new Nodo(idVar.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR));
+                        RESULT = NFP;
+            :}
+           |   IDVAR:id IGUALADOR Expresion:e {:
+                        token idVar = (token) id; 
+                        Nodo NFP = new Nodo ("ASIGNACION", idVar.getTab() + 1, Nodo.TIPO_ASIGNACION);
+                        NFP.agregarHijoNI(new Nodo(idVar.getNombre(), 0, Nodo.TIPO_IDENTIFCADOR));
+                        NFP.agregarHijoNI(e);
+                        RESULT = NFP;
+        :};
+
+
+Condicion ::= RSI:s PARENTESISA Expresion:e PARENTESISC RENTONCES PUNTOPUNTO 
+              {:
+                    token si = (token) s;
+                    Nodo nsi = new Nodo ("si", si.getTab()+1, Nodo.TIPO_SI, si.getFila(), si.getColumna());
+                    nsi.agregarHijoNI(e);
+                    Nodo cod = new Nodo ("BLOQUE CODIGO", si.getTab()+1, Nodo.TIPO_BLOQUE);
+                    nsi.agregarHijoNI(cod);
+                    RESULT = nsi;
+              :}                                                
+            | RSINO:s PARENTESISA Expresion:e PARENTESISC RENTONCES PUNTOPUNTO 
+               {:
+                    token sino = (token) s;
+                    Nodo nsino = new Nodo ("sino", sino.getTab()+1, Nodo.TIPO_SINO_COND, sino.getFila(), sino.getColumna());
+                    nsino.agregarHijoNI(e);
+                    Nodo cod = new Nodo ("BLOQUE CODIGO", sino.getTab()+1, Nodo.TIPO_BLOQUE);
+                    nsino.agregarHijoNI(cod);
+                    RESULT = nsino;
+              :} 
+            | RSINO:s PUNTOPUNTO {:
+                    token sino = (token) s;
+                    Nodo nsino = new Nodo ("sino", sino.getTab()+1, Nodo.TIPO_SINO, sino.getFila(), sino.getColumna());
+                    Nodo cod = new Nodo ("BLOQUE CODIGO", sino.getTab()+1, Nodo.TIPO_BLOQUE);
+                    nsino.agregarHijoNI(cod);
+                    RESULT = nsino;
+                :};

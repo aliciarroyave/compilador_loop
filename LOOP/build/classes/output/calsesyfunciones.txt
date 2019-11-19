@@ -1,0 +1,12 @@
+incluir ->"./src/LIBRERIAS/libreria.loop"
+incluir ->"./src/LIBRERIAS/libreria1.loop"
+Clase ->Dos
+propiedad ->adios
+propiedad ->no
+funcion ->suma
+Clase ->Uno
+propiedad ->esEntero
+propiedad ->adios
+propiedad ->hola
+funcion ->suma1
+funcion ->resta
